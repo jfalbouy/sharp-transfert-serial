@@ -1,0 +1,13 @@
+# Manuels Sharp scannes : documents sous droits, conserves en local.
+Documentation/*.pdf
+
+# Binaire regenerable depuis sharp_pc_e500s_comm.c
+sharp_comm.exe
+
+# Cache Visual Studio / reglages locaux
+.vs/
+.claude/settings.local.json
+
+# Fichiers verrou Office et bruit Windows
+~$*
+Thumbs.db
