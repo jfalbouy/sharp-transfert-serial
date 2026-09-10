@@ -74,7 +74,28 @@ OPEN "COM:9600,N,8,1,A,L,&H1A,X,N"
 
 then `LOAD` to receive, or `SAVE "COM:"` to send.
 
-> At 19200 baud, type `OPEN "COM:19200,..."`. The program reminds you of the exact line.
+> The Sharp does **not** accept a baud rate above 9600 in the `OPEN "COM:xxxx,..."`
+> command. To use 19200 baud, you must change the SIO baud value at address `0BFD33h`,
+> as described on page 53 of the Technical Reference.
+>
+> To switch to **19200 baud**, type on the Sharp:
+>
+> ```
+> POKE &HBFD33, PEEK &HBFD33 OR &H70
+> ```
+>
+> Resulting value `&H78` / 120d, i.e. bits 6, 5 and 4 set to 1.
+>
+> To go back to **9600 baud** without touching the other parameters, type on the Sharp:
+>
+> ```
+> POKE &HBFD33, (PEEK &HBFD33 AND &H8F) OR &H60
+> ```
+>
+> Resulting value `&H68` / 104d, i.e. bits 6, 5, 4 back to 110.
+
+Then type `OPEN "COM:19200,..."` on the Sharp. The program reminds you of the exact line
+to type, with the baud rate actually selected.
 
 ---
 
@@ -203,3 +224,110 @@ settings are what they are.
   irrelevant: the Sharp dictates the pace.
 - Sending (`LOAD`, CPU-bound) and receiving (`SAVE`, wire-bound) are **asymmetric**: baud
   rate helps receiving, not sending.
+
+---
+
+## 10. Measured transfer figures (Sharp ⇄ PC)
+
+| File | Size (bytes) | Baud (bits/s) | Direction | Time (s) | Throughput (bits/s) |
+|---------|-----------------|-----------------|----------------|-----------|------------------|
+| ISOTOP  | 17487           | 9600            | PC -> Sharp | 56.27     | 311              |
+| ISOTOP  | 17487           | 9600            | Sharp -> PC | 27.23     | 642              |
+| ISOTOP  | 17487           | 19200           | PC -> Sharp | 55.27     | 316              |
+| ISOTOP  | 17487           | 19200           | Sharp -> PC | 16.30     | 1073             |
+| ELECTR  | 9297            | 9600            | PC -> Sharp | 28.05     | 331              |
+| ELECTR  | 9297            | 9600            | Sharp -> PC | 13.97     | 666              |
+| ELECTR  | 9297            | 19200           | PC -> Sharp | 27.56     | 337              |
+| ELECTR  | 9297            | 19200           | Sharp -> PC | 8.36      | 1112             |
+| 62015_2 | 20299           | 9600            | PC -> Sharp | 68.67     | 296              |
+| 62015_2 | 20299           | 9600            | Sharp -> PC | 31.11     | 652              |
+| 62015_2 | 20299           | 19200           | PC -> Sharp | 67.50     | 301              |
+| 62015_2 | 20299           | 19200           | Sharp -> PC | 18.41     | 1103             |
+
+---
+
+## 11. Sharp internal communication parameters
+
+- **SIO timer master**: **0BFD31h and 0BFD32h**
+  - Time n on error timer * 0.5s. However, 0FFFFh is unlimited. Default value = 0FFFFh (unlimited)
+- **SIO baud rate**: **0BFD33h**
+  - Specify baud rate, length and parity. Default value = 3Ch / 60d / 00111100b
+  - Bits 6, 5, 4: baud rate -> 000 = None, 001 = 300, 010 = 600, 011 = 1200, 100 = 2400, 101 = 4800, 110 = 9600, 111 = 19200
+  - Bits 3, 2: parity -> 00 = Even parity, 01 = Odd parity, 10 = Non parity, 11 = Non parity
+  - Bit 1: length -> 0 = 8 bits, 1 = 7 bits
+  - Bit 0: stop bit -> 0 = 1 bit, 1 = 2 bits
+- **SIO setup**: **0BFD34h**
+  - Specify shift in/out, X on/off. Specify transfer of transmission code at open/close. Default value = 21h / 33d
+  - Bit 6 = 0: 1 byte data stored in SIO open send data is not transmitted at open state
+  - Bit 6 = 1: transferred SIO open send data = 0BFD61h
+  - Bit 4 = 0: 1 byte data stored in SIO close send data is not transmitted at close state
+  - Bit 4 = 1: transferred SIO close send data = 0BFD62h
+  - Bit 2 = 0: without X on/off designation at receiving
+  - Bit 2 = 1: with designation
+  - Bit 1 = 0: without X on/off designation at sending
+  - Bit 1 = 1: with designation
+  - Bit 0 = 0: without shift in/out designation
+  - Bit 0 = 1: with designation
+- **SIO receive port condition**: **0BFD35h**
+  - Control of receive port. Default value = 02h
+  - Bit 2 CS = 0: don't care
+  - Bit 2 CS = 1: take in as receiving data when the CS signal is high and ignore at low
+  - Bit 1 CD = 0: don't care
+  - Bit 1 CD = 1: take in as receiving data when the CD signal is high and ignore at low
+- **SIO receive port control**: **0BFD36h**
+  - Control of receive port. Default value = 0DFh
+  - Bit 6 ER = 0: when receiving buffer becomes full, ER signal becomes low
+  - Bit 6 ER = 1: don't care
+  - Bit 5 RR = 0: when receiving buffer becomes full, RR signal becomes low
+  - Bit 5 RR = 1: don't care
+  - Bit 4 RS = 0: when receiving buffer becomes full, RS signal becomes low
+  - Bit 4 RS = 1: don't care
+- **SIO send port condition**: **0BFD37h**
+  - Control of send port. Default value = 04h
+  - Bit 2 CS = 0: don't care
+  - Bit 2 CS = 1: transmit when the CS signal is low, wait until it becomes high
+  - Bit 1 CD = 0: don't care
+  - Bit 1 CD = 1: transmit when the CD signal becomes high. When the CD signal is low, wait until it becomes high
+- **SIO send port control**: **0BFD38h**
+  - Control of send port. Default value = 050h
+  - Bit 6 ER = 0: don't care
+  - Bit 6 ER = 1: ER signal becomes high before transfer of transmission data block and becomes low after transfer
+  - Bit 5 RR = 0: don't care
+  - Bit 5 RR = 1: RR signal becomes high before transfer of transmission data block and becomes low after transfer
+  - Bit 4 RS = 0: don't care
+  - Bit 4 RS = 1: RS signal becomes high before transfer of transmission data block and becomes low after transfer
+- **SIO send delay**: **0BFD39h**
+  - <00-0FFh> * 2 ms wait time is specified before or after transmission data block at transmission. Default value = 01h (2 ms)
+- **SIO crlf**: **0BFD3Bh**
+  - Specify the delimiter. External code is converted into internal delimiter (0Dh + 0Ah). Default value = 01h
+  - Bits 1, 0: 00 = not used, 01 = 0Dh, 10 = 0Ah, 11 = 0Dh + 0Ah
+- **SIO eof code**: **0BFD3Ch**
+  - To specify the end code. Default value = 1Ah
+- **SIO open close wait**: **0BFD40h**
+  - Wait n * 0.5 ms immediately after opening or immediately before closing. Default value = 04h (20 ms)
+- **SIO open port control**: **0BFD41h**
+  - Open of SIO port. Default value = 41h
+  - Bit 6 ER = 0: don't care
+  - Bit 6 ER = 1: ER signal becomes high at open and low at close
+  - Bit 5 RR = 0: don't care
+  - Bit 5 RR = 1: RR signal becomes high at open and low at close
+  - Bit 4 RS = 0: don't care
+  - Bit 4 RS = 1: RS signal becomes high at open and low at close
+- **SIO send n byte wait**: **0BFD60h**
+  - Specify insertion time of <00-0FFh> * 2 ms wait between send data 1 byte at sending. Default value = 00h (no wait)
+- **SIO open send data**: **0BFD61h**
+  - Default value = 11h
+  - When SIO setup bit 6 is 1, SIO open send data is transferred by 1 byte at open
+- **SIO close send data**: **0BFD62h**
+  - Default value = 13h
+  - When SIO setup bit 4 is 1, SIO close send data is transferred by 1 byte at close
+
+**Transmission of 1 byte:**
+
+In case Xon-Xoff is specified, if the Xoff code is being received, the transmitting side
+keeps waiting until the Xon code is received and the line is released.
+
+And if the signal to be monitored (the port specified with `SIO send port condition`) is not
+set ON (high level), it keeps waiting.
+
+When the above conditions are satisfied and the CPU is ready and empty, 1 byte of data is output.

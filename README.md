@@ -2,7 +2,7 @@
 
 *(English version: [README.en.md](README.en.md))*
 
-Outil en ligne de commande (Windows) pour transférer des programmes **BASIC en texteASCII** entre un PC et un ordinateur de poche **Sharp PC-E500S**, via une liaison sérieRS-232.
+Outil en ligne de commande (Windows) pour transférer des programmes **BASIC en texte ASCII** entre un PC et un ordinateur de poche **Sharp PC-E500S**, via une liaison série RS-232.
 
 - **Émission** (PC → Sharp) : le PC envoie un fichier `.BAS`, le Sharp le reçoit avec `LOAD`.
 - **Réception** (Sharp → PC) : le Sharp émet avec `SAVE "COM:"`, le PC enregistre le fichier.
@@ -22,29 +22,29 @@ Outil en ligne de commande (Windows) pour transférer des programmes **BASIC en 
 
 ### Réglage important de l'adaptateur USB-série
 
-Le flow control XON/XOFF doit réagir vite. Dans le **Gestionnaire de périphériques**→ *Ports (COM et LPT)* → votre port → **Propriétés** → **Paramètres du port** → **Avancés…** :
+Le flow control XON/XOFF doit réagir vite. Dans le **Gestionnaire de périphériques** → *Ports (COM et LPT)* → votre port → **Propriétés** → **Paramètres du port** → **Avancés…** :
 
-- **Prolific PL2303** : passer le **FIFO « Receive Buffer » sur Low (1)** (et « TransmitBuffer » sur Low (1)).
+- **Prolific PL2303** : passer le **FIFO « Receive Buffer » sur Low (1)** (et « Transmit Buffer » sur Low (1)).
 - **FTDI** : mettre le **Latency Timer à 1 ms**.
 
-Sans ce réglage, le XOFF du Sharp est détecté trop tard et le transfert peut échouer(I/O ERROR).
+Sans ce réglage, le XOFF du Sharp est détecté trop tard et le transfert peut échouer (I/O ERROR).
 
 ---
 
 ## 2. Compilation
 
 ```bash
-# MinGW (gcc) — le -lwinmm est requis (timeBeginPeriod)                                              
-gcc sharp_pc_e500s_comm.c -o sharp_comm.exe -lwinmm                                              
-                                              
-# ou MSVC (winmm est lié automatiquement via #pragma)                                              
+# MinGW (gcc) — le -lwinmm est requis (timeBeginPeriod)
+gcc sharp_pc_e500s_comm.c -o sharp_comm.exe -lwinmm
+
+# ou MSVC (winmm est lié automatiquement via #pragma)
 cl sharp_pc_e500s_comm.c
 ```
 
 Vérifier :
 
 ```bash
-sharp_comm.exe --help                                              
+sharp_comm.exe --help
 sharp_comm.exe --show-serial -p COM1     # affiche la config actuelle du port
 ```
 
@@ -52,7 +52,7 @@ sharp_comm.exe --show-serial -p COM1     # affiche la config actuelle du port
 
 ## 3. Réglages côté Sharp PC-E500S
 
-Le PC-E500S doit être configuré au **même débit** que le PC. Le programme affiche labonne ligne à taper (avec le débit choisi). Config de référence :
+Le PC-E500S doit être configuré au **même débit** que le PC. Le programme affiche la bonne ligne à taper (avec le débit choisi). Config de référence :
 
 
 | Paramètre  | Valeur                       |
@@ -74,34 +74,36 @@ OPEN "COM:9600,N,8,1,A,L,&H1A,X,N"
 
 puis `LOAD` pour recevoir, ou `SAVE "COM:"` pour émettre.
 
-> 
-> Le Sharp n'accepte pas dans la commande  `OPEN "COM:xxxx,..."`. une valeur de débit supérieur à 9600 bauds. Pour pouvoir utiliser la valeur de 19200 bauds, il faut modifier la valeur du SIO baud à l'adresse 0BFD33h comme stipulé à la page 53 du manuel technique.
-> Pour ce faire, saisir sur le Sharp :
-> 
+> Le Sharp n'accepte **pas** de débit supérieur à 9600 bauds dans la commande
+> `OPEN "COM:xxxx,..."`. Pour utiliser 19200 bauds, il faut modifier la valeur du SIO baud
+> à l'adresse `0BFD33h`, comme indiqué page 53 du manuel technique.
+>
+> Pour passer à **19200 bauds**, saisir sur le Sharp :
+>
+> ```
+> POKE &HBFD33, PEEK &HBFD33 OR &H70
+> ```
+>
+> Valeur obtenue `&H78` / 120d, soit les bits 6, 5 et 4 à la valeur 1.
+>
+> Pour revenir à **9600 bauds** sans modifier les autres paramètres, saisir sur le Sharp :
+>
+> ```
+> POKE &HBFD33, (PEEK &HBFD33 AND &H8F) OR &H60
+> ```
+>
+> Valeur obtenue `&H68` / 104d, soit les bits 6, 5, 4 remis à 110.
 
-```
-> POKE &HBFD33, PEEK &BFD33 OR &70 : valeur obtenue &78 / 120d, soit les bits 4, 5 et 6 à la valeur 1                    
-```  Pour revenir à la valeur de 9600 bauds sans modifier les autres paramètres, saisir sur le Sharp :                    
->                     
->                     
-> 
-```
+Puis taper `OPEN "COM:19200,..."` sur le Sharp. Le programme rappelle la ligne exacte à
+taper, avec le débit réellement sélectionné.
 
-> 
-> POKE &BFD33, (PEEK &BFD33 AND &8F) OR &60 : valeur obtenue & 68 / 104d, soit le bit 6 à la valeur zéro
-> 
+---
 
-```
+## 4. Utilisation
 
->                     
+### Émission : PC → Sharp
 
----                    
-
-## 4. Utilisation                    
-
-### Émission : PC → Sharp                    
-
-```bash                    
+```bash
 sharp_comm.exe --mode send monprog.bas -p COM1
 ```
 
@@ -133,32 +135,37 @@ Déroulé :
 ## 5. Options
 
 ```
--p, --port <port>       Port COM (ex: COM1, COM2). Défaut: COM1                                              
--b, --baud <rate>       Débit : 300, 600, 1200, 2400, 4800, 9600, 19200. Défaut: 9600                                              
--m, --mode <mode>       'send' ou 'receive'                                              
---char-delay <ms>   Délai entre paquets (0 = flow control XON/XOFF). Défaut: 0                                              
---line-delay <ms>   Délai entre lignes BASIC. Défaut: 0                                              
---chunk <n>         Octets par écriture série. Défaut: 16                                              
---idle-timeout <ms> Silence max avant arrêt (réception). Défaut: 3000                                              
---rts <on|off>      RTS (entrée CS du Sharp, requis pour XON/XOFF). Défaut: on                                              
---dtr <on|off>      DTR (entrée CD du Sharp). Défaut: off                                              
--v, --verbose           Affiche les données / lignes transférées                                              
--s, --show-serial       Affiche les paramètres du port série puis quitte                                              
+-p, --port <port>       Port COM (ex: COM1, COM2). Défaut: COM1
+-b, --baud <rate>       Débit : 300, 600, 1200, 2400, 4800, 9600, 19200. Défaut: 9600
+-m, --mode <mode>       'send' ou 'receive'
+--char-delay <ms>   Délai entre paquets (0 = flow control XON/XOFF). Défaut: 0
+--line-delay <ms>   Délai entre lignes BASIC. Défaut: 0
+--chunk <n>         Octets par écriture série. Défaut: 16
+--idle-timeout <ms> Silence max avant arrêt (réception). Défaut: 3000
+--rts <on|off>      RTS (entrée CS du Sharp, requis pour XON/XOFF). Défaut: on
+--dtr <on|off>      DTR (entrée CD du Sharp). Défaut: off
+-v, --verbose           Affiche les données / lignes transférées
+-s, --show-serial       Affiche les paramètres du port série puis quitte
 -h, --help              Affiche l'aide
 ```
 
 ### Profil rapide (défaut) et repli
 
-- **Défaut = rapide** : `--rts on --char-delay 0 --line-delay 0 --chunk 16`→ ~**305 octets/s**, régulé par le XON/XOFF du Sharp. Rien à préciser.
-- **Repli** si `I/O ERROR` côté Sharp (flow control indisponible) :		sharp_comm.exe --mode send monprog.bas -p COM1 --chunk 1 --char-delay 16Envoi cadencé « aveugle », ~58 octets/s, mais qui fonctionne sans flow control.
+- **Défaut = rapide** : `--rts on --char-delay 0 --line-delay 0 --chunk 16`
+  → ~**305 octets/s**, régulé par le XON/XOFF du Sharp. Rien à préciser.
+- **Repli** si `I/O ERROR` côté Sharp (flow control indisponible) :
+  ```bash
+  sharp_comm.exe --mode send monprog.bas -p COM1 --chunk 1 --char-delay 16
+  ```
+  Envoi cadencé « aveugle », ~58 octets/s, mais qui fonctionne sans flow control.
 
 ---
 
 ## 6. Vérification — important
 
-**En émission (PC → Sharp), il n'y a AUCUN accusé de réception.** Le message« Émission terminée (côté PC) » signifie seulement que le PC a fini d'écrire ses octets —**pas** que le Sharp a tout accepté.
+**En émission (PC → Sharp), il n'y a AUCUN accusé de réception.** Le message « Émission terminée (côté PC) » signifie seulement que le PC a fini d'écrire ses octets — **pas** que le Sharp a tout accepté.
 
-➡️ **Vérifiez toujours avec `LIST` sur le Sharp** que le programme est complet et non corrompu.Une fin de transfert rapide n'est pas une preuve de succès.
+➡️ **Vérifiez toujours avec `LIST` sur le Sharp** que le programme est complet et non corrompu. Une fin de transfert rapide n'est pas une preuve de succès.
 
 ---
 
@@ -178,24 +185,24 @@ Déroulé :
 
 ## 8. Notes techniques
 
-- **RTS=ON est la clé de l'émission rapide.** Le Sharp ne transmet (ses données *et* leXOFF qui freine le PC) que si son entrée **CS (broche 5)** est haute, pilotée par le RTSdu PC (*Technical Reference* p. 54, `SIO send port condition` = 04H). RTS bas ⇒ pas deXOFF ⇒ débordement ⇒ I/O ERROR.
-- **Le débit n'accélère pas l'émission.** `LOAD` tokenise le BASIC à ~305 octets/s(limité par le CPU du Sharp) : 9600 et 19200 donnent le même temps. On garde 9600.
-- **La réception, elle, profite du débit** : `SAVE` recrache la mémoire vite (limité par lefil), donc 19200 est ~2× plus rapide que 9600 en réception.
-- **Fins de ligne** : quel que soit le format d'entrée (`\n`, `\r`, `\r\n`), le programmeenvoie du **CR+LF**, conforme au délimiteur `L`.
+- **RTS=ON est la clé de l'émission rapide.** Le Sharp ne transmet (ses données *et* le XOFF qui freine le PC) que si son entrée **CS (broche 5)** est haute, pilotée par le RTS du PC (*Technical Reference* p. 54, `SIO send port condition` = 04H). RTS bas ⇒ pas de XOFF ⇒ débordement ⇒ I/O ERROR.
+- **Le débit n'accélère pas l'émission.** `LOAD` tokenise le BASIC à ~305 octets/s (limité par le CPU du Sharp) : 9600 et 19200 donnent le même temps. On garde 9600.
+- **La réception, elle, profite du débit** : `SAVE` recrache la mémoire vite (limité par le fil), donc 19200 est ~2× plus rapide que 9600 en réception.
+- **Fins de ligne** : quel que soit le format d'entrée (`\n`, `\r`, `\r\n`), le programme envoie du **CR+LF**, conforme au délimiteur `L`.
 - **Fichiers** : ASCII simple, **sans BOM UTF-8 ni caractères accentués**.
 
-> 
+>
 > Un équivalent PowerShell existe (`Powershell/toSharp.ps1`, `Powershell/fromSharp.ps1`)
 > avec le même profil rapide.
-> 
+>
 
 ---
 
 ## 9. Parcours d'optimisation (58 → 305 octets/s)
 
-Trace du raisonnement qui a mené au profil rapide, utile pour comprendre *pourquoi* lesréglages sont ce qu'ils sont.
+Trace du raisonnement qui a mené au profil rapide, utile pour comprendre *pourquoi* les réglages sont ce qu'ils sont.
 
-**Point de départ.** L'émission PC → Sharp prenait **3 min 41 s** pour 12 733 octets, soit\*\*~58 octets/s\*\*. Le débit série (9600) n'y changeait rien.
+**Point de départ.** L'émission PC → Sharp prenait **3 min 41 s** pour 12 733 octets, soit **~58 octets/s**. Le débit série (9600) n'y changeait rien.
 
 
 | Étape | Hypothèse testée                                   | Résultat                                                                                                                                                                           |
@@ -214,8 +221,8 @@ Trace du raisonnement qui a mené au profil rapide, utile pour comprendre *pourq
 
 - La granularité du timer Windows masquait le vrai comportement des délais (`Sleep(1)` ≈ 15,6 ms).
 - **RTS=ON est indispensable** pour que le XON/XOFF fonctionne en émission (il alimente le CS du Sharp).
-- Une fois le flow control actif, tous les réglages côté PC (chunk, line-delay, débit)deviennent sans effet : c'est le Sharp qui dicte le rythme.
-- L'émission (`LOAD`, CPU-bound) et la réception (`SAVE`, wire-bound) sont **asymétriques** :le débit aide la réception, pas l'émission.
+- Une fois le flow control actif, tous les réglages côté PC (chunk, line-delay, débit) deviennent sans effet : c'est le Sharp qui dicte le rythme.
+- L'émission (`LOAD`, CPU-bound) et la réception (`SAVE`, wire-bound) sont **asymétriques** : le débit aide la réception, pas l'émission.
 
 ## 10. Valeurs de transfert entre le Sharp et le PC
 
@@ -236,88 +243,90 @@ Trace du raisonnement qui a mené au profil rapide, utile pour comprendre *pourq
 | 62015_2 | 20299           | 19200           | Sharp -> PC | 18.41     | 1103             |
 
 
-## 11. Valeurs des paramères internes de communication du Sharp
+## 11. Valeurs des paramètres internes de communication du Sharp
 
-- **SIO timer master** : **0BFD31h et 0BFD32h**　　
-- 　　Time n on error timer \* 0.5s. However, 0FFFFh is unlimited. Default value = 0FFFFh (unlimited)
+*(Extrait du Technical Reference, conservé en anglais.)*
+
+- **SIO timer master** : **0BFD31h et 0BFD32h**
+  - Time n on error timer * 0.5s. However, 0FFFFh is unlimited. Default value = 0FFFFh (unlimited)
 - **SIO baud rate** : **0BFD33h**
-- 　　Specify baud rate, length et parity. Default value = 3Ch / 60d / 00111100b
-- 　　Bit 6, 5, 4 : baud rate -> 000 = None, 001 = 300, 010= 600, 011 = 1200, 100 = 2400, 101 = 4800, 110 = 9600,  111 = 19200
-- 　　Bit 3, 2 : Parity -> 00 = Even parity, 01 = Odd parity, 10 Non parity, 11 Non parity
-- 　　Bit 1 : Length -> 0 : 8 bits, 1 : 7 bits
-- 　　Bit 0 : Stop bit -> 0 : 1 bit, 1 : 2 bits
-- **SIO Setup** : **0BFD34h**
-- 　　Specify shift in/out, X on/off. Specify transfer of transmission code at open/close. Default value = 21h / 33d
-- 　　Bit 6 =0 : 1 byte data stored in SIO open send data is not transmitted at open state
-- 　　Bit 6 = 1 : Transfered SIO opensend data = 0BFD61h
-- 　　Bit 4 = 0 : 1 byte data stored in SIO close send data is not transmitted at close state
-- 　　Bit 4 = 1 : Transfered SIO close send data = 0BFD62h
-- 　　Bit 2 = 0 : Without X on/off designation at receiving
-- 　　Bit 2 - 1 : With designation
-- 　　Bit 1 = 0 : Without X on/off designation at sending
-- 　　Bit 1 = 1 : With designation
-- 　　Bit 0 = 0 : Without shift in/out designation
-- 　　Bit 0 = 1 : With designation
+  - Specify baud rate, length and parity. Default value = 3Ch / 60d / 00111100b
+  - Bits 6, 5, 4 : baud rate -> 000 = None, 001 = 300, 010 = 600, 011 = 1200, 100 = 2400, 101 = 4800, 110 = 9600, 111 = 19200
+  - Bits 3, 2 : parity -> 00 = Even parity, 01 = Odd parity, 10 = Non parity, 11 = Non parity
+  - Bit 1 : length -> 0 = 8 bits, 1 = 7 bits
+  - Bit 0 : stop bit -> 0 = 1 bit, 1 = 2 bits
+- **SIO setup** : **0BFD34h**
+  - Specify shift in/out, X on/off. Specify transfer of transmission code at open/close. Default value = 21h / 33d
+  - Bit 6 = 0 : 1 byte data stored in SIO open send data is not transmitted at open state
+  - Bit 6 = 1 : transferred SIO open send data = 0BFD61h
+  - Bit 4 = 0 : 1 byte data stored in SIO close send data is not transmitted at close state
+  - Bit 4 = 1 : transferred SIO close send data = 0BFD62h
+  - Bit 2 = 0 : without X on/off designation at receiving
+  - Bit 2 = 1 : with designation
+  - Bit 1 = 0 : without X on/off designation at sending
+  - Bit 1 = 1 : with designation
+  - Bit 0 = 0 : without shift in/out designation
+  - Bit 0 = 1 : with designation
 - **SIO receive port condition** : **0BFD35h**
-- 　　Control of receive port. Default value = 02h
-- 　　Bit 2 CS = 0 : don't care
-- 　　Bit 2 CS = 1 : take in as receiving data when the CS signal is high and ignore at low
-- 　　Bit 1 CD = 0 : don't care
-- 　　Bit 1 CD = 1 : take in as receiving data when the CD signal is high and ignore at low
+  - Control of receive port. Default value = 02h
+  - Bit 2 CS = 0 : don't care
+  - Bit 2 CS = 1 : take in as receiving data when the CS signal is high and ignore at low
+  - Bit 1 CD = 0 : don't care
+  - Bit 1 CD = 1 : take in as receiving data when the CD signal is high and ignore at low
 - **SIO receive port control** : **0BFD36h**
-- 　　Control of receve port. Default value = 0DFh
-- 　　Bit 6 ER = 0 : When receiving buffer becomes full, ER signal becomes low
-- 　　Bit 6 ER = 1 : don't care
-- 　　Bit 5 RR = 0 : When receiving buffer becomes full, RR signal becomes low
-- 　　Bit 5 RR = 1 : don't care
-- 　　Bit 4 RS = 0 : When receiving buffer becomes full, RS signal becomes low
-- 　　Bit 4 RS = 1 : don't care
+  - Control of receive port. Default value = 0DFh
+  - Bit 6 ER = 0 : when receiving buffer becomes full, ER signal becomes low
+  - Bit 6 ER = 1 : don't care
+  - Bit 5 RR = 0 : when receiving buffer becomes full, RR signal becomes low
+  - Bit 5 RR = 1 : don't care
+  - Bit 4 RS = 0 : when receiving buffer becomes full, RS signal becomes low
+  - Bit 4 RS = 1 : don't care
 - **SIO send port condition** : **0BFD37h**
-- 　　Control of SEND port. Default value = 04h
-- 　　Bit 2 CS = 0 : don't care
-- 　　Bit 2 CS = 1 : Transmit when the CS signal is low, wait until it becomes high
-- 　　Bit 1 CD = 0 : don't care
-- 　　Bit 1 CD = 1 : Transmit when then CD signal becomes high. When the CD signal is low, wait until it becomes high
+  - Control of send port. Default value = 04h
+  - Bit 2 CS = 0 : don't care
+  - Bit 2 CS = 1 : transmit when the CS signal is low, wait until it becomes high
+  - Bit 1 CD = 0 : don't care
+  - Bit 1 CD = 1 : transmit when the CD signal becomes high. When the CD signal is low, wait until it becomes high
 - **SIO send port control** : **0BFD38h**
-- 　　Control of send port. Default value = 050h
-- 　　Bit  ER = 0 : don't care
-- 　　Bit ER = 1 : ER signal becomes high before transfer of transmission data block and becomes low after transfer
-- 　　Bit 5 RR = 0 : don't care
-- 　　Bit 5 RR = 1 : RR signal becomes high before transfer of transmission data block and becomes low after transfer
-- 　　Bit 4 RS = 0 : don't care
-- 　　Bit 4 RS = 1 : RS signal becomes high before transfer transmission data block and becomes low after transfer
+  - Control of send port. Default value = 050h
+  - Bit 6 ER = 0 : don't care
+  - Bit 6 ER = 1 : ER signal becomes high before transfer of transmission data block and becomes low after transfer
+  - Bit 5 RR = 0 : don't care
+  - Bit 5 RR = 1 : RR signal becomes high before transfer of transmission data block and becomes low after transfer
+  - Bit 4 RS = 0 : don't care
+  - Bit 4 RS = 1 : RS signal becomes high before transfer of transmission data block and becomes low after transfer
 - **SIO send delay** : **0BFD39h**
-- 　　<00-0FFh> \* 2 ms wait time is specified before or after transmission data block at transmission. Default value = 01h (2 ms)
-- 　　SIO crlf : 0BFD3Bh
-- 　　Specify the delimiter. Extenal code is converted into internal delimiter (0Dh + 0Ah). Default value = 01h
-- 　　Bit 1, 0 : 00 = Not use, 01 = 0Dh, 10 = 0Ah, 11 = 0Dh + 0Ah
+  - <00-0FFh> * 2 ms wait time is specified before or after transmission data block at transmission. Default value = 01h (2 ms)
+- **SIO crlf** : **0BFD3Bh**
+  - Specify the delimiter. External code is converted into internal delimiter (0Dh + 0Ah). Default value = 01h
+  - Bits 1, 0 : 00 = not used, 01 = 0Dh, 10 = 0Ah, 11 = 0Dh + 0Ah
 - **SIO eof code** : **0BFD3Ch**
-- 　　To specify the end code. Default value = 1Ah
+  - To specify the end code. Default value = 1Ah
 - **SIO open close wait** : **0BFD40h**
-- 　　Wait n \* 0.5 ms immediately after opening or immediately before closing. Default value = 04h (20 ms)
+  - Wait n * 0.5 ms immediately after opening or immediately before closing. Default value = 04h (20 ms)
 - **SIO open port control** : **0BFD41h**
-- 　　Open of SIO port. Default value = 41h
-- 　　Bit 6 ER = 0 : don't care
-- 　　Bit 6 ER = 1 : ER signal becomes high at open and low at close
-- 　　Bit R RR = 0 : don't care
-- 　　Bit 5 RR = 1 : RR signal becomes high at open and low at close
-- 　　Bit 4 RS = 0 : don't care
-- 　　Bit 4 RS = 1 : RS signal becomes high at open and low at close
+  - Open of SIO port. Default value = 41h
+  - Bit 6 ER = 0 : don't care
+  - Bit 6 ER = 1 : ER signal becomes high at open and low at close
+  - Bit 5 RR = 0 : don't care
+  - Bit 5 RR = 1 : RR signal becomes high at open and low at close
+  - Bit 4 RS = 0 : don't care
+  - Bit 4 RS = 1 : RS signal becomes high at open and low at close
 - **SIO send n byte wait** : **0BFD60h**
-- 　　Specify  insertion time of <00 \* FFh> \* 2 ms wait between send data 1 byte at sending. Default valure = 00h (non wait)
-- 　　SIO open send data : 0BFD61h
-- 　　Default value = 11h
-- 　　When SIO setup bit 6 is 1, SIO open send data is transfered by 1 byte at open
+  - Specify insertion time of <00-0FFh> * 2 ms wait between send data 1 byte at sending. Default value = 00h (no wait)
+- **SIO open send data** : **0BFD61h**
+  - Default value = 11h
+  - When SIO setup bit 6 is 1, SIO open send data is transferred by 1 byte at open
 - **SIO close send data** : **0BFD62h**
-- 　　Default value = 13h
-- 　　When SIO setup bit 4 is 1, SIO close send data is transfered by 1 byte at close
+  - Default value = 13h
+  - When SIO setup bit 4 is 1, SIO close send data is transferred by 1 byte at close
 
-Transmission 1 byte :
+**Transmission d'un octet :**
 
-In case of Xon-Xoff is specified, if Xoff code is being rezceived, transmission side keeps waiting until X-code is received and released
+In case Xon-Xoff is specified, if the Xoff code is being received, the transmitting side
+keeps waiting until the Xon code is received and the line is released.
 
-And, if the signal (port specified with SIO send port condition) to be monitored is not set ON (high level), it keeps waiting
+And if the signal to be monitored (the port specified with `SIO send port condition`) is not
+set ON (high level), it keeps waiting.
 
-When above conditions are satisfied and in CPU ready, empty state, 1 byte data is output
-
- 
+When the above conditions are satisfied and the CPU is ready and empty, 1 byte of data is output.
