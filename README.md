@@ -330,3 +330,13 @@ And if the signal to be monitored (the port specified with `SIO send port condit
 set ON (high level), it keeps waiting.
 
 When the above conditions are satisfied and the CPU is ready and empty, 1 byte of data is output.
+
+---
+
+## 12. Licence
+
+Ce projet est distribué sous licence **MIT** — voir le fichier [LICENSE](LICENSE).
+
+Les manuels Sharp du dossier `Documentation/` ne sont **pas** couverts par cette licence :
+ce sont des documents sous droits de leur éditeur, conservés en local et exclus du dépôt.
+
